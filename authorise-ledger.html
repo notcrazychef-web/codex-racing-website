@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Racing file authorisation</title>
+<style>body{font:16px/1.5 system-ui;max-width:760px;margin:2rem auto;padding:0 1rem}input{display:block;width:100%;padding:.5rem;margin:.4rem 0 1rem;box-sizing:border-box}button{padding:.7rem 1rem}pre{white-space:pre-wrap}</style></head><body>
+<h1>Authorise the racing ledger</h1>
+<p>Owner-only Google Picker. Use the same dedicated OAuth client as GitHub Actions. No credentials or file data are transmitted to this page's host. Do not paste client secrets or refresh tokens.</p>
+<label>OAuth web client ID <input id="client" autocomplete="off" placeholder="...apps.googleusercontent.com"></label>
+<label>Browser API key (restricted to this origin) <input id="key" autocomplete="off"></label>
+<label>Google Cloud project number (Picker app ID) <input id="app" autocomplete="off"></label>
+<button id="open" disabled>Open Google file picker</button>
+<pre id="status">Loading Google libraries…</pre>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+<script>
+const $=id=>document.getElementById(id);let pickerReady=false;
+function loadPicker(){if(!window.gapi){setTimeout(loadPicker,250);return;}gapi.load('picker',{callback:()=>{pickerReady=true;$('open').disabled=false;$('status').textContent='Ready. Select only the racing ledger.'}})}
+loadPicker();
+$('open').onclick=()=>{
+ const client=$('client').value.trim(),key=$('key').value.trim(),app=$('app').value.trim();
+ if(!client.endsWith('.apps.googleusercontent.com')||!key||!/^[0-9]+$/.test(app)){ $('status').textContent='Enter the dedicated OAuth web client ID, restricted API key and numeric project number.';return;}
+ if(!pickerReady||!window.google?.accounts?.oauth2){$('status').textContent='Google libraries unavailable';return;}
+ google.accounts.oauth2.initTokenClient({client_id:client,scope:'https://www.googleapis.com/auth/drive.file',callback:resp=>{
+   if(resp.error||!resp.access_token){$('status').textContent='Google authorisation was not completed';return;}
+   const view=new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setIncludeFolders(false);
+   const picker=new google.picker.PickerBuilder().addView(view).setOAuthToken(resp.access_token).setDeveloperKey(key).setAppId(app).setCallback(data=>{
+     if(data.action===google.picker.Action.PICKED){
+       const files=data.docs||[];const selected=files.map(f=>({id:f.id,name:f.name}));
+       $('status').textContent=JSON.stringify({selected,expected_ledger_id:'1AnL4qw6GjwcYhfwhtLJDbUlu3Nx0-uwkZSBfRM4xea0',match:selected.some(f=>f.id==='1AnL4qw6GjwcYhfwhtLJDbUlu3Nx0-uwkZSBfRM4xea0')},null,2);
+     }else if(data.action===google.picker.Action.CANCEL){$('status').textContent='Cancelled; no file selected';}
+   }).build();picker.setVisible(true);
+ }}).requestAccessToken({prompt:'consent'});
+};
+</script></body></html>
